@@ -1,5 +1,6 @@
-from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver import MCPServer, Message, UserMessage
 from pydantic import Field
+
 
 mcp = MCPServer("DocumentMCP", log_level="DEBUG")
 
@@ -12,6 +13,30 @@ docs = {
     "spec.txt": "These specifications define the technical requirements for the equipment",
     "python-for-nodejs.md": "The detaild guide for the shift from Node.js dev to Python dev"
 }
+
+@mcp.resource(
+    "docs://documents",
+    mime_type="application/json"
+)
+def list_docs() -> list[str]:
+    return list(docs.keys())
+
+@mcp.resource(
+    "docs://documents/{doc_id}",
+    mime_type="text/plain"
+)
+def fetch_doc(doc_id: str) -> str:
+    if doc_id not in docs:
+        raise ValueError(f"Doc with id {doc_id} not found")
+    return docs[doc_id]
+
+@mcp.tool(
+    name="list_documents",
+    description="Get a list of available documents"
+)
+def list_documents():
+    return docs.keys()
+
 
 @mcp.tool(
     name="read_doc_contents",
@@ -39,6 +64,29 @@ def edit_document(
     
     docs[doc_id] = docs[doc_id].replace(old_str, new_str)
 
+
+@mcp.prompt(
+    name="format",
+    description="Rewrites the contents of the document in Markdown format."
+)
+def format_document(
+    doc_id: str = Field(description="Id of the document to format")
+) -> list[Message]:
+    prompt = f"""
+        Your goal is to reformat a document to be written with markdown syntax.
+
+        The id of the document you need to reformat is:
+        <document_id>
+        {doc_id}
+        </document_id>
+
+        Add in headers, bullet points, tables, etc as necessary. Feel free to add in structure.
+        Use the 'edit_document' tool to edit the document. After the document has been reformatted...
+        """
+
+    return [
+        UserMessage(prompt)
+    ]
 
 if __name__ == "__main__":
     mcp.run()
